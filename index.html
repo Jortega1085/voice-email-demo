@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Voice Email</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;background:#000;color:#fff;font-family:-apple-system,system-ui,Segoe UI,Roboto,Arial,sans-serif;font-size:28px;line-height:1.3}
+  body{padding:12px 12px calc(24px + env(safe-area-inset-bottom))}
+  #banner{background:#ffd400;color:#000;font-weight:800;text-align:center;padding:12px;border-radius:12px;margin-bottom:12px;font-size:26px}
+  #banner.real{background:#00d26a}
+  h1{font-size:34px;margin:6px 0 12px;color:#ffd400}
+  .card{border:4px solid #ffd400;border-radius:18px;padding:16px;margin-bottom:14px}
+  .count{color:#ffd400;font-weight:800;font-size:30px}
+  .from{font-size:34px;font-weight:800;margin-top:6px;word-wrap:break-word}
+  .subj{font-size:32px;margin-top:6px;word-wrap:break-word}
+  .snip{font-size:28px;margin-top:12px;color:#ddd;white-space:pre-wrap;word-wrap:break-word;max-height:40vh;overflow:auto}
+  button{display:block;width:100%;min-height:96px;font-size:32px;font-weight:800;border-radius:18px;border:4px solid #fff;background:#111;color:#fff;margin:0 0 14px;padding:12px;cursor:pointer;touch-action:manipulation}
+  button:active{background:#333}
+  button.primary{background:#ffd400;color:#000;border-color:#ffd400}
+  button.go{background:#00d26a;color:#000;border-color:#00d26a}
+  button.stop{background:#ff3b30;color:#fff;border-color:#ff3b30}
+  button.small{min-height:70px;font-size:26px}
+  .row{display:flex;gap:12px}.row>button{flex:1}
+  .draft{font-size:40px;font-weight:800;color:#ffd400;background:#111;border:4px solid #ffd400;border-radius:18px;padding:18px;min-height:160px;white-space:pre-wrap;word-wrap:break-word;margin-bottom:14px}
+  textarea,input[type=text]{width:100%;font-size:30px;background:#111;color:#fff;border:4px solid #fff;border-radius:14px;padding:12px;margin-bottom:14px}
+  textarea{min-height:200px}
+  label{display:block;font-weight:700;margin:10px 0 6px;color:#ffd400}
+  input[type=range]{width:100%;height:60px}
+  #status{font-size:26px;color:#9fe;min-height:36px;margin:6px 0 12px}
+  .hidden{display:none!important}
+  #start{position:fixed;inset:0;background:#000;display:flex;flex-direction:column;justify-content:center;align-items:stretch;padding:24px;z-index:9}
+  #start button{min-height:200px;font-size:48px}
+  #start p{text-align:center;font-size:30px}
+  .listening{animation:pulse 1s infinite}
+  @keyframes pulse{50%{opacity:.55}}
+  .seg{display:flex;gap:10px;margin-bottom:10px}.seg button{flex:1;min-height:80px;font-size:26px}
+  .seg button.on{background:#ffd400;color:#000;border-color:#ffd400}
+  small{font-size:22px;color:#bbb}
+</style>
+</head>
+<body>
+<div id="start">
+  <p style="color:#ffd400;font-size:40px;font-weight:800">Voice Email</p>
+  <button id="startBtn" class="primary">▶ START</button>
+  <p>Tap once to begin. The phone will read your email out loud.</p>
+</div>
+
+<div id="banner">DEMO MODE - nothing is actually sent</div>
+<div id="status" aria-live="polite"></div>
+
+<!-- INBOX -->
+<section id="inbox">
+  <div class="card" id="msgCard">
+    <div class="count" id="mCount">—</div>
+    <div class="from" id="mFrom"></div>
+    <div class="subj" id="mSubj"></div>
+    <div class="snip" id="mSnip"></div>
+  </div>
+  <button id="btnNext" class="primary">▶ Read next</button>
+  <div class="row"><button id="btnRepeat">🔁 Repeat</button><button id="btnPrev">◀ Back</button></div>
+  <button id="btnFull">📖 Read full message</button>
+  <button id="btnReply" class="go">🎤 Reply by voice</button>
+  <div class="row"><button id="btnStopTalk" class="small stop">⏹ Stop talking</button><button id="btnRefresh" class="small">⟳ Check mail</button></div>
+  <button id="btnSettings" class="small">⚙ Settings</button>
+</section>
+
+<!-- REPLY -->
+<section id="reply" class="hidden">
+  <h1 id="replyTo">Reply</h1>
+  <button id="btnMic" class="go">🎤 Tap and speak</button>
+  <div id="liveLbl" style="color:#ffd400;font-weight:700">Your words:</div>
+  <textarea id="draftBox" placeholder="Your reply appears here. You can also type."></textarea>
+  <button id="btnReview" class="primary">✔ Done — check my reply</button>
+  <button id="btnReplyCancel" class="stop small">✖ Cancel</button>
+</section>
+
+<!-- CONFIRM -->
+<section id="confirm" class="hidden">
+  <h1>Send this reply?</h1>
+  <div class="draft" id="draftShow"></div>
+  <button id="btnSend" class="go">✅ SEND</button>
+  <div class="row"><button id="btnRedo">🔄 Redo</button><button id="btnCancel" class="stop">✖ Cancel</button></div>
+  <button id="btnHear" class="small">🔊 Read it to me again</button>
+  <button id="btnVoiceConfirm" class="small">🎤 Answer by voice: say “send”, “redo” or “cancel”</button>
+</section>
+
+<!-- SETTINGS -->
+<section id="settings" class="hidden">
+  <h1>Settings</h1>
+  <label>Mode</label>
+  <div class="seg"><button id="modeDemo">Demo</button><button id="modeReal">Real Gmail</button></div>
+  <label for="rate">Speech speed: <span id="rateVal"></span></label>
+  <input type="range" id="rate" min="0.5" max="1.5" step="0.05">
+  <button id="btnTestVoice" class="small">🔊 Test voice</button>
+  <label for="clientId">Google OAuth Client ID</label>
+  <input type="text" id="clientId" placeholder="xxxx.apps.googleusercontent.com" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <small>This page’s origin (add it in Google Cloud as an Authorized JavaScript origin): <b id="originShow"></b></small>
+  <div style="height:12px"></div>
+  <button id="btnSaveSettings" class="primary">💾 Save</button>
+  <button id="btnSignIn" class="go">🔑 Sign in with Google</button>
+  <button id="btnSignOut" class="small">Sign out</button>
+  <button id="btnSettingsBack" class="small">◀ Back to mail</button>
+</section>
+
+<script>
+(function(){
+'use strict';
+var $=function(id){return document.getElementById(id)};
+var LS={get:function(k,d){try{var v=localStorage.getItem('ve_'+k);return v===null?d:v}catch(e){return d}},set:function(k,v){try{localStorage.setItem('ve_'+k,v)}catch(e){}}};
+var params=new URLSearchParams(location.search);
+if(params.get('client_id')){LS.set('client_id',params.get('client_id'))}
+if(params.get('mode')==='real'||params.get('mode')==='demo'){LS.set('mode',params.get('mode'))}
+
+var state={mode:LS.get('mode','demo'),rate:parseFloat(LS.get('rate','0.9'))||0.9,clientId:LS.get('client_id',''),token:null,tokenExp:0,
+  msgs:[],idx:-1,view:'inbox',myEmail:''};
+var tokenClient=null;
+
+/* ---------- MOCK DATA ---------- */
+function mockMsgs(){return [
+ {id:'m1',threadId:'t1',fromName:'Sarah (your daughter)',fromEmail:'sarah@example.com',subject:'Dinner on Sunday?',
+  body:'Hi Mom! Are you free for dinner this Sunday around 5? The kids want to see you. I can pick you up at 4:30. Love you!',messageId:'<m1@example.com>',references:''},
+ {id:'m2',threadId:'t2',fromName:'Valley Eye Care',fromEmail:'appointments@valleyeyecare.example',subject:'Appointment reminder: Thursday at 10:30 AM',
+  body:'This is a reminder of your appointment with Dr. Patel on Thursday at 10:30 AM. Please bring your eye drops and arrive 15 minutes early. Reply YES to confirm or call us to reschedule.',messageId:'<m2@valleyeyecare.example>',references:''},
+ {id:'m3',threadId:'t3',fromName:'CVS Pharmacy',fromEmail:'noreply@pharmacy.example',subject:'Your prescription is ready for pickup',
+  body:'Your prescription for latanoprost eye drops is ready for pickup at the Main Street pharmacy. It will be held for 7 days. Reply if you would like home delivery.',messageId:'<m3@pharmacy.example>',references:''}
+];}
+
+/* ---------- SPEECH OUT ---------- */
+var synth=window.speechSynthesis, voice=null;
+function pickVoice(){ if(!synth)return; var vs=synth.getVoices()||[];
+  voice=vs.find(function(v){return /en(-|_)US/i.test(v.lang)&&/Samantha|Google US English|Ava|Allison|Natural/i.test(v.name)})||vs.find(function(v){return /^en/i.test(v.lang)&&v.localService})||vs.find(function(v){return /^en/i.test(v.lang)})||null;}
+if(synth){pickVoice(); if('onvoiceschanged' in synth) synth.onvoiceschanged=pickVoice;}
+function chunks(t){ t=String(t||'').replace(/\s+/g,' ').trim(); if(!t)return[];
+  var parts=t.match(/[^.!?;:]+[.!?;:]*\s*/g)||[t], out=[], cur='';
+  parts.forEach(function(p){ if((cur+p).length>180){ if(cur)out.push(cur); while(p.length>180){out.push(p.slice(0,180));p=p.slice(180);} cur=p;} else cur+=p;});
+  if(cur.trim())out.push(cur); return out;}
+var speakGen=0;
+function speak(text,onDone){ setStatus('🔊 '+String(text).slice(0,120)+(String(text).length>120?'…':''));
+  if(!synth){ if(onDone)setTimeout(onDone,0); return; }
+  var gen=++speakGen; synth.cancel(); var list=chunks(text), i=0;
+  function next(){ if(gen!==speakGen)return; if(i>=list.length){ if(onDone)onDone(); return; }
+    var u=new SpeechSynthesisUtterance(list[i++]); u.rate=state.rate; u.lang='en-US'; if(voice)u.voice=voice;
+    var fired=false; var fin=function(){ if(fired)return; fired=true; next(); };
+    u.onend=fin; u.onerror=fin; synth.speak(u);
+    // safety: some browsers never fire onend
+    setTimeout(function(){ if(!fired && gen===speakGen && !synth.speaking) fin(); }, 400+list[i-1].length*120/state.rate);
+  }
+  setTimeout(next,60);
+}
+function stopTalking(){ speakGen++; if(synth)synth.cancel(); }
+function setStatus(t){ $('status').textContent=t; }
+
+/* ---------- SPEECH IN ---------- */
+var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+var rec=null, recActive=false;
+function listen(opts){ // opts: onText(final, interim), onEnd(finalText), onError
+  if(!SR){ opts.onError&&opts.onError('unsupported'); return; }
+  stopTalking();
+  try{ if(rec){ rec.onend=null; rec.abort(); } }catch(e){}
+  rec=new SR(); rec.lang='en-US'; rec.interimResults=true; rec.continuous=false; rec.maxAlternatives=1;
+  var finalText='';
+  rec.onresult=function(ev){ var interim=''; for(var i=ev.resultIndex;i<ev.results.length;i++){ var r=ev.results[i]; if(r.isFinal) finalText+=r[0].transcript+' '; else interim+=r[0].transcript; }
+    opts.onText&&opts.onText(finalText.trim(),interim); };
+  rec.onerror=function(ev){ opts.onError&&opts.onError(ev.error||'error'); };
+  rec.onend=function(){ recActive=false; opts.onEnd&&opts.onEnd(finalText.trim()); };
+  // Delay a moment so text-to-speech has released the audio (iOS)
+  setTimeout(function(){ try{ rec.start(); recActive=true; }catch(e){ opts.onError&&opts.onError(String(e.message||e)); } },250);
+}
+function stopListening(){ try{ if(rec&&recActive) rec.stop(); }catch(e){} }
+
+/* ---------- VIEWS ---------- */
+function show(v){ state.view=v; ['inbox','reply','confirm','settings'].forEach(function(s){ $(s).classList.toggle('hidden',s!==v); }); window.scrollTo(0,0); }
+function renderBanner(){ var b=$('banner');
+  if(state.mode==='demo'){ b.textContent='DEMO MODE - nothing is actually sent'; b.className=''; }
+  else { b.textContent='REAL GMAIL'+(state.myEmail?' – '+state.myEmail:'')+(state.token?'':' – not signed in'); b.className='real'; }
+  $('modeDemo').classList.toggle('on',state.mode==='demo'); $('modeReal').classList.toggle('on',state.mode==='real'); }
+function cur(){ return state.msgs[state.idx]; }
+function renderMsg(){ var m=cur(), n=state.msgs.length;
+  if(!m){ $('mCount').textContent=n?'Tap “Read next”':'No unread messages'; $('mFrom').textContent=''; $('mSubj').textContent=''; $('mSnip').textContent=''; return; }
+  $('mCount').textContent='Message '+(state.idx+1)+' of '+n; $('mFrom').textContent='From: '+m.fromName; $('mSubj').textContent='Subject: '+(m.subject||'(no subject)');
+  $('mSnip').textContent=m.body||m.snippet||''; }
+function summary(m){ return 'Message '+(state.idx+1)+' of '+state.msgs.length+'. From '+m.fromName+'. Subject: '+(m.subject||'no subject')+'.'; }
+function readCurrent(full){ var m=cur(); if(!m){ speak(state.msgs.length?'Tap read next to hear your first message.':'You have no unread messages.'); return; }
+  renderMsg(); var t=summary(m);
+  if(full){ t+=' The message says: '+(m.body||m.snippet||'nothing')+' . End of message. To answer, tap Reply by voice.'; }
+  else { var s=(m.snippet||m.body||''); if(s) t+=' It begins: '+s.slice(0,160)+(s.length>160?'…':'')+' . Tap Read full message to hear all of it.'; }
+  speak(t); }
+function readNext(){ if(!state.msgs.length){ speak('You have no unread messages.'); return; }
+  if(state.idx>=state.msgs.length-1){ speak('That was your last unread message. Tap Back to hear earlier ones, or Check mail.'); return; }
+  state.idx++; readCurrent(false); }
+function readPrev(){ if(state.idx<=0){ speak('This is the first message.'); return; } state.idx--; readCurrent(false); }
+
+/* ---------- GMAIL ---------- */
+function haveToken(){ return state.token && Date.now()<state.tokenExp-30000; }
+function loadGis(cb){ if(window.google&&google.accounts&&google.accounts.oauth2){cb();return;}
+  var s=document.createElement('script'); s.src='https://accounts.google.com/gsi/client'; s.async=true; s.onload=cb; s.onerror=function(){ speak('Could not reach Google sign in. Check the internet connection.'); }; document.head.appendChild(s); }
+var pendingAfterAuth=null;
+function signIn(then){ if(!state.clientId){ speak('Please paste a Google client I D in settings first.'); show('settings'); return; }
+  pendingAfterAuth=then||null;
+  loadGis(function(){
+    if(!tokenClient || tokenClient._cid!==state.clientId){
+      tokenClient=google.accounts.oauth2.initTokenClient({client_id:state.clientId,
+        scope:'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send',
+        callback:function(resp){ if(resp.error){ speak('Sign in failed: '+resp.error); setStatus('Sign-in error: '+resp.error+' '+(resp.error_description||'')); return; }
+          state.token=resp.access_token; state.tokenExp=Date.now()+(parseInt(resp.expires_in,10)||3600)*1000; renderBanner();
+          gapi('profile').then(function(p){ state.myEmail=p.emailAddress||''; renderBanner(); }).catch(function(){});
+          var f=pendingAfterAuth; pendingAfterAuth=null; if(f) f(); else { show('inbox'); fetchInbox(); } },
+        error_callback:function(err){ speak('Sign in was closed or blocked.'); setStatus('Sign-in error: '+(err&&err.type||err)+' (allow pop-ups for this site)'); } });
+      tokenClient._cid=state.clientId;
+    }
+    tokenClient.requestAccessToken({prompt:state.token?'':'consent'});
+  });
+}
+function gapi(path,opt){ opt=opt||{}; return fetch('https://gmail.googleapis.com/gmail/v1/users/me/'+path,{method:opt.method||'GET',
+  headers:Object.assign({'Authorization':'Bearer '+state.token},opt.body?{'Content-Type':'application/json'}:{}),body:opt.body?JSON.stringify(opt.body):undefined})
+  .then(function(r){ return r.json().then(function(j){ if(!r.ok){ var e=new Error((j.error&&j.error.message)||('HTTP '+r.status)); e.status=r.status; throw e;} return j; }); }); }
+function b64urlDecode(s){ s=String(s||'').replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4)s+='='; try{ var bin=atob(s), bytes=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i); return new TextDecoder('utf-8').decode(bytes);}catch(e){return '';} }
+function b64urlEncode(str){ var bytes=new TextEncoder().encode(str), bin=''; for(var i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000)); return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function findPart(p,mime){ if(!p)return null; if(p.mimeType===mime && p.body && p.body.data) return p.body.data; if(p.parts){ for(var i=0;i<p.parts.length;i++){ var r=findPart(p.parts[i],mime); if(r)return r; } } return null; }
+function htmlToText(h){ var d=document.createElement('div'); d.innerHTML=String(h).replace(/<(style|script)[\s\S]*?<\/\1>/gi,' ').replace(/<br\s*\/?>/gi,'\n').replace(/<\/p>/gi,'\n'); return d.textContent||''; }
+function cleanBody(t){ t=String(t||''); // drop quoted history
+  var cut=t.search(/\n\s*On .{5,200}wrote:\s*\n|\n-{2,}\s*Original Message|\n>.*\n>/i); if(cut>40) t=t.slice(0,cut);
+  t=t.replace(/https?:\/\/\S+/g,'(link)').replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim(); return t.slice(0,4000); }
+function hdr(h,name){ name=name.toLowerCase(); for(var i=0;i<(h||[]).length;i++){ if(h[i].name.toLowerCase()===name) return h[i].value; } return ''; }
+function parseFrom(f){ var m=String(f).match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>/); if(m) return {name:(m[1].trim()||m[2]),email:m[2].trim()}; return {name:f.trim(),email:f.trim()}; }
+function decodeEntities(s){ var t=document.createElement('textarea'); t.innerHTML=s; return t.value; }
+function fetchInbox(){ if(state.mode==='demo'){ state.msgs=mockMsgs(); state.idx=-1; renderMsg(); speak('Demo mode. You have '+state.msgs.length+' unread messages. Tap Read next to hear the first one.'); return; }
+  if(!haveToken()){ signIn(fetchInbox); return; }
+  setStatus('Checking mail…'); speak('Checking your mail.');
+  gapi('messages?q='+encodeURIComponent('is:unread in:inbox')+'&maxResults=10').then(function(list){
+    var ids=(list.messages||[]).map(function(m){return m.id});
+    return Promise.all(ids.map(function(id){ return gapi('messages/'+id+'?format=full'); }));
+  }).then(function(full){
+    state.msgs=full.map(function(m){ var h=m.payload&&m.payload.headers, fr=parseFrom(hdr(h,'Reply-To')||hdr(h,'From')), disp=parseFrom(hdr(h,'From'));
+      var txt=findPart(m.payload,'text/plain'), body=txt?b64urlDecode(txt):''; if(!body){ var html=findPart(m.payload,'text/html'); if(html) body=htmlToText(b64urlDecode(html)); }
+      return {id:m.id,threadId:m.threadId,fromName:disp.name,fromEmail:fr.email,subject:hdr(h,'Subject'),snippet:decodeEntities(m.snippet||''),body:cleanBody(body)||decodeEntities(m.snippet||''),
+        messageId:hdr(h,'Message-ID')||hdr(h,'Message-Id'),references:hdr(h,'References')}; });
+    state.idx=-1; renderMsg();
+    speak(state.msgs.length?('You have '+state.msgs.length+' unread message'+(state.msgs.length>1?'s':'')+'. Tap Read next to hear the first one.'):'You have no unread messages.');
+  }).catch(function(e){ if(e.status===401){ state.token=null; signIn(fetchInbox); return; } speak('Sorry, I could not get your mail.'); setStatus('Gmail error: '+e.message); });
+}
+function encHeader(s){ return /^[\x20-\x7e]*$/.test(s)?s:'=?UTF-8?B?'+btoa(unescape(encodeURIComponent(s)))+'?='; }
+function sendReply(m,text,done,fail){
+  if(state.mode==='demo'){ setTimeout(function(){done();},600); return; }
+  if(!haveToken()){ signIn(function(){ sendReply(m,text,done,fail); }); return; }
+  var subj=m.subject||''; if(!/^re:/i.test(subj)) subj='Re: '+subj;
+  var refs=((m.references||'')+' '+(m.messageId||'')).trim();
+  var lines=['To: '+m.fromEmail,'Subject: '+encHeader(subj),'MIME-Version: 1.0','Content-Type: text/plain; charset="UTF-8"','Content-Transfer-Encoding: 8bit'];
+  if(m.messageId){ lines.push('In-Reply-To: '+m.messageId); lines.push('References: '+refs); }
+  var raw=lines.join('\r\n')+'\r\n\r\n'+text.replace(/\r?\n/g,'\r\n')+'\r\n';
+  gapi('messages/send',{method:'POST',body:{raw:b64urlEncode(raw),threadId:m.threadId}}).then(function(){done();}).catch(function(e){ fail(e); });
+}
+
+/* ---------- REPLY FLOW ---------- */
+function startReply(){ var m=cur(); if(!m){ speak('First tap Read next to choose a message.'); return; }
+  $('replyTo').textContent='Reply to '+m.fromName; $('draftBox').value=''; show('reply');
+  if(!SR){ speak('Voice typing is not available in this browser. Please type your reply in the box, or use the microphone key on the keyboard.'); $('btnMic').classList.add('hidden'); $('draftBox').focus(); return; }
+  speak('Replying to '+m.fromName+'. Tap the green button, then say your reply.'); }
+function micTap(){ if(recActive){ stopListening(); return; }
+  var base=$('draftBox').value.trim(); var b=$('btnMic');
+  b.textContent='🔴 Listening… tap to stop'; b.classList.add('listening','stop'); setStatus('🎤 Listening…');
+  listen({onText:function(f,i){ $('draftBox').value=(base?base+' ':'')+f+(i?' '+i:''); },
+    onEnd:function(f){ b.textContent='🎤 Tap and speak'; b.classList.remove('listening','stop');
+      var full=((base?base+' ':'')+f).trim(); $('draftBox').value=full;
+      if(f){ review(); } else { setStatus('I did not hear anything.'); speak('I did not hear anything. Tap the green button and try again.'); } },
+    onError:function(err){ b.textContent='🎤 Tap and speak'; b.classList.remove('listening','stop');
+      if(err==='no-speech')return; if(err==='not-allowed'||err==='service-not-allowed'){ speak('The microphone is blocked. Please allow microphone and speech recognition for this site, or type your reply.'); setStatus('Mic blocked: allow Microphone + Speech Recognition in Settings, or type.'); }
+      else if(err==='unsupported'){ speak('Voice typing is not available here. Please type.'); } else if(err!=='aborted'){ setStatus('Voice error: '+err); } } });
+}
+function review(){ var t=$('draftBox').value.trim(); if(!t){ speak('Your reply is empty. Tap the green button and speak.'); return; }
+  t=t.charAt(0).toUpperCase()+t.slice(1); if(!/[.!?]$/.test(t)) t+='.'; $('draftBox').value=t;
+  $('draftShow').textContent=t; show('confirm');
+  speak('Your reply says: '+t+' . To send it, tap the green Send button. Or tap Redo, or Cancel.'); }
+function doSend(){ var m=cur(), t=$('draftShow').textContent; $('btnSend').disabled=true; setStatus('Sending…');
+  sendReply(m,t,function(){ $('btnSend').disabled=false;
+      speak((state.mode==='demo'?'Demo: ':'')+'Your reply was sent to '+m.fromName+'. Tap Read next for your next message.');
+      state.msgs.splice(state.idx,1); state.idx--; show('inbox'); renderMsg(); if(state.idx<0&&state.msgs.length){$('mCount').textContent='Tap “Read next”';} },
+    function(e){ $('btnSend').disabled=false; speak('Sorry, the reply was not sent. '+(e.message||'')); setStatus('Send failed: '+e.message); });
+}
+function voiceConfirm(){ speak('Say send, redo, or cancel.',function(){
+  setStatus('🎤 Say “send”, “redo” or “cancel”'); $('btnVoiceConfirm').classList.add('listening');
+  listen({onText:function(){},onEnd:function(f){ $('btnVoiceConfirm').classList.remove('listening'); var w=f.toLowerCase();
+      if(/\b(send|yes|send it)\b/.test(w)) doSend(); else if(/\b(redo|again|change|re do)\b/.test(w)) redo(); else if(/\b(cancel|stop|no)\b/.test(w)) cancelReply();
+      else speak('Sorry, I did not catch that. Tap a button instead.'); },
+    onError:function(err){ $('btnVoiceConfirm').classList.remove('listening'); if(err!=='no-speech'&&err!=='aborted') setStatus('Voice error: '+err); }}); }); }
+function redo(){ $('draftBox').value=''; show('reply'); speak('OK, let us try again. Tap the green button and speak.'); }
+function cancelReply(){ stopListening(); show('inbox'); speak('Reply cancelled. Nothing was sent.'); }
+
+/* ---------- SETTINGS ---------- */
+function openSettings(){ $('clientId').value=state.clientId; $('rate').value=state.rate; $('rateVal').textContent=state.rate.toFixed(2)+'x'; $('originShow').textContent=location.origin; renderBanner(); show('settings'); speak('Settings.'); }
+function setMode(m){ state.mode=m; LS.set('mode',m); renderBanner(); speak(m==='demo'?'Demo mode. Nothing will be sent.':'Real Gmail mode. Tap Sign in with Google.'); }
+function saveSettings(){ state.clientId=$('clientId').value.trim(); LS.set('client_id',state.clientId); LS.set('rate',String(state.rate)); speak('Saved.'); show('inbox'); fetchInbox(); }
+
+/* ---------- WIRE UP ---------- */
+function on(id,fn){ $(id).addEventListener('click',fn); }
+on('startBtn',function(){ $('start').classList.add('hidden');
+  if(synth){ try{ var u=new SpeechSynthesisUtterance(' '); u.volume=0; synth.speak(u);}catch(e){} } // unlock audio on iOS
+  renderBanner(); fetchInbox(); });
+on('btnNext',readNext); on('btnRepeat',function(){readCurrent(false)}); on('btnPrev',readPrev); on('btnFull',function(){readCurrent(true)});
+on('btnReply',startReply); on('btnStopTalk',function(){stopTalking();setStatus('Stopped.')}); on('btnRefresh',fetchInbox); on('btnSettings',openSettings);
+on('btnMic',micTap); on('btnReview',function(){stopListening();review()}); on('btnReplyCancel',cancelReply);
+on('btnSend',doSend); on('btnRedo',redo); on('btnCancel',cancelReply); on('btnHear',function(){speak('Your reply says: '+$('draftShow').textContent)}); on('btnVoiceConfirm',voiceConfirm);
+on('modeDemo',function(){setMode('demo')}); on('modeReal',function(){setMode('real')});
+$('rate').addEventListener('input',function(){ state.rate=parseFloat(this.value); $('rateVal').textContent=state.rate.toFixed(2)+'x'; LS.set('rate',String(state.rate)); });
+on('btnTestVoice',function(){speak('This is how fast I will talk.')}); on('btnSaveSettings',saveSettings);
+on('btnSignIn',function(){ state.clientId=$('clientId').value.trim(); LS.set('client_id',state.clientId); setMode('real'); signIn(); });
+on('btnSignOut',function(){ if(state.token&&window.google&&google.accounts) google.accounts.oauth2.revoke(state.token,function(){}); state.token=null; state.myEmail=''; renderBanner(); speak('Signed out.'); });
+on('btnSettingsBack',function(){ show('inbox'); });
+renderBanner(); renderMsg();
+if(!SR) setStatus('Note: voice typing not supported in this browser – typing box will be used.');
+window.__ve={state:state,mockMsgs:mockMsgs,b64urlEncode:b64urlEncode};
+})();
+</script>
+</body>
+</html>
