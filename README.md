@@ -2,8 +2,8 @@
 
 Big-button, talking email for people with low vision. It's one file, `index.html`, with no server.
 
-**Live link:** https://raw.githack.com/Jortega1085/voice-email-demo/main/index.html
-(If GitHub Pages is turned on: https://jortega1085.github.io/voice-email-demo/)
+**Live link:** https://htmlpreview.github.io/?https://github.com/Jortega1085/voice-email-demo/blob/main/index.html
+(Once GitHub Pages is turned on, under repo Settings → Pages → Deploy from branch `main` / root: https://jortega1085.github.io/voice-email-demo/)
 
 ## 1. Demo right now (mock mode, zero setup)
 1. Open the live link on the phone (Safari on iPhone, Chrome on Android).
@@ -24,7 +24,7 @@ If the mic doesn't work, type in the box instead, or use the keyboard's mic key.
    Leave the app in **Testing**. Under **Test users / Audience**, add the Gmail address that will be read (e.g. the mother's).
 4. Open **Credentials → Create credentials → OAuth client ID**. Pick type **Web application**.
    For **Authorized JavaScript origins**, add the exact origin you open the app from (no path, no trailing slash):
-   - `https://raw.githack.com` (current live link)
+   - `https://htmlpreview.github.io` (current live link)
    - `https://jortega1085.github.io` (if you use GitHub Pages)
    Then click Create and copy the **Client ID** (`....apps.googleusercontent.com`).
 5. In the app, tap **Settings**, paste the Client ID, tap **Real Gmail**, then **Sign in with Google**.
